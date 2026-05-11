@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Slide Remote — Controle seus slides de qualquer lugar</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #07070d;
+    --surface: #0f0f1a;
+    --surface2: #161625;
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.13);
+    --text: #eeeef5;
+    --muted: rgba(238,238,245,0.42);
+    --accent: #7c6cfa;
+    --accent2: #a799ff;
+    --accent-glow: rgba(124,108,250,0.25);
+    --green: #4ade80;
+    --radius: 18px;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── Noise overlay ── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.6;
+  }
+
+  /* ── NAV ── */
+  nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 1.1rem 2.5rem;
+    background: rgba(7,7,13,0.8);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+  }
+  .nav-logo {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 18px; font-weight: 800; letter-spacing: -0.3px;
+    text-decoration: none; color: var(--text);
+  }
+  .nav-logo span { font-size: 22px; }
+  .nav-links { display: flex; align-items: center; gap: 2rem; }
+  .nav-links a {
+    font-size: 14px; color: var(--muted); text-decoration: none;
+    transition: color 0.2s; font-weight: 600;
+  }
+  .nav-links a:hover { color: var(--text); }
+  .nav-cta {
+    background: var(--accent); color: #fff !important;
+    padding: 0.5rem 1.2rem; border-radius: 10px;
+    font-size: 13px !important;
+    transition: opacity 0.2s !important;
+  }
+  .nav-cta:hover { opacity: 0.85; }
+
+  /* ── HERO ── */
+  .hero {
+    position: relative;
+    min-height: 100vh;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    text-align: center;
+    padding: 7rem 2rem 4rem;
+    overflow: hidden;
+  }
+
+  /* Glow de fundo */
+  .hero::after {
+    content: '';
+    position: absolute;
+    top: 20%; left: 50%; transform: translateX(-50%);
+    width: 700px; height: 400px;
+    background: radial-gradient(ellipse, rgba(124,108,250,0.18) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  /* Grade de pontos */
+  .hero-grid {
+    position: absolute; inset: 0;
+    background-image: radial-gradient(circle, rgba(255,255,255,0.06) 1px, transparent 1px);
+    background-size: 36px 36px;
+    mask-image: radial-gradient(ellipse 80% 60% at 50% 40%, black 30%, transparent 100%);
+    pointer-events: none;
+  }
+
+  .hero-badge {
+    display: inline-flex; align-items: center; gap: 7px;
+    background: rgba(124,108,250,0.12); border: 1px solid rgba(124,108,250,0.3);
+    border-radius: 50px; padding: 0.35rem 1rem;
+    font-size: 12px; color: var(--accent2); font-weight: 600;
+    margin-bottom: 1.75rem;
+    animation: fadeUp 0.6s ease both;
+  }
+  .badge-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 6px var(--green); }
+
+  .hero h1 {
+    font-size: clamp(42px, 7vw, 80px);
+    font-weight: 800;
+    line-height: 1.05;
+    letter-spacing: -2px;
+    margin-bottom: 1.25rem;
+    animation: fadeUp 0.6s 0.1s ease both;
+  }
+  .hero h1 em {
+    font-family: 'Instrument Serif', serif;
+    font-style: italic;
+    color: var(--accent2);
+  }
+
+  .hero p {
+    font-size: 18px; color: var(--muted); max-width: 520px;
+    line-height: 1.65; margin-bottom: 2.5rem;
+    animation: fadeUp 0.6s 0.2s ease both;
+  }
+
+  .hero-actions {
+    display: flex; gap: 14px; flex-wrap: wrap; justify-content: center;
+    animation: fadeUp 0.6s 0.3s ease both;
+  }
+
+  .btn-download {
+    display: inline-flex; align-items: center; gap: 10px;
+    background: var(--accent); color: #fff;
+    padding: 0.9rem 1.8rem; border-radius: var(--radius);
+    font-size: 15px; font-weight: 700; text-decoration: none;
+    transition: all 0.2s; font-family: 'Syne', sans-serif;
+    box-shadow: 0 0 30px rgba(124,108,250,0.4);
+  }
+  .btn-download:hover { transform: translateY(-2px); box-shadow: 0 0 40px rgba(124,108,250,0.6); }
+  .btn-download svg { width: 18px; height: 18px; flex-shrink: 0; }
+
+  .btn-mobile {
+    display: inline-flex; align-items: center; gap: 10px;
+    background: var(--surface2); color: var(--text);
+    border: 1px solid var(--border2);
+    padding: 0.9rem 1.8rem; border-radius: var(--radius);
+    font-size: 15px; font-weight: 700; text-decoration: none;
+    transition: all 0.2s; font-family: 'Syne', sans-serif;
+  }
+  .btn-mobile:hover { background: var(--surface); border-color: var(--accent); transform: translateY(-2px); }
+  .btn-mobile svg { width: 18px; height: 18px; flex-shrink: 0; }
+
+  .hero-note {
+    margin-top: 1.25rem;
+    font-size: 12px; color: var(--muted);
+    animation: fadeUp 0.6s 0.4s ease both;
+  }
+
+  /* ── Mockup / preview ── */
+  .hero-preview {
+    margin-top: 4rem;
+    position: relative;
+    animation: fadeUp 0.8s 0.5s ease both;
+  }
+  .preview-card {
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: 24px;
+    padding: 2rem;
+    max-width: 580px;
+    margin: 0 auto;
+    box-shadow: 0 40px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.05);
+    display: flex;
+    gap: 1.5rem;
+    align-items: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .preview-card::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(124,108,250,0.5), transparent);
+  }
+
+  .preview-pc {
+    background: var(--surface2); border: 1px solid var(--border2);
+    border-radius: 16px; padding: 1.5rem; flex: 1; text-align: center;
+  }
+  .preview-pc .icon { font-size: 36px; margin-bottom: 0.5rem; }
+  .preview-code {
+    font-family: 'DM Mono', monospace;
+    font-size: 28px; font-weight: 500;
+    color: var(--accent2); letter-spacing: 6px;
+    margin: 0.5rem 0;
+  }
+  .preview-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1.5px; }
+
+  .preview-arrow {
+    font-size: 22px; color: var(--muted); flex-shrink: 0;
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+  }
+  .preview-arrow-line {
+    width: 40px; height: 1px;
+    background: linear-gradient(90deg, var(--border2), var(--accent));
+  }
+
+  .preview-phone {
+    background: var(--surface2); border: 1px solid var(--border2);
+    border-radius: 16px; padding: 1.5rem; flex: 1; text-align: center;
+  }
+  .preview-phone .icon { font-size: 36px; margin-bottom: 0.5rem; }
+  .preview-arrows {
+    display: flex; gap: 8px; justify-content: center; margin-top: 0.75rem;
+  }
+  .preview-btn {
+    background: var(--bg); border: 1.5px solid var(--border2);
+    border-radius: 10px; padding: 0.5rem 1rem;
+    font-size: 18px; color: var(--text);
+  }
+  .preview-connected {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 11px; color: var(--green); margin-top: 0.5rem;
+  }
+  .preview-connected::before {
+    content: ''; width: 5px; height: 5px; border-radius: 50%;
+    background: var(--green); box-shadow: 0 0 6px var(--green);
+  }
+
+  /* ── COMO FUNCIONA ── */
+  .section {
+    padding: 6rem 2rem;
+    max-width: 1000px; margin: 0 auto;
+    position: relative; z-index: 1;
+  }
+
+  .section-tag {
+    display: inline-block;
+    font-size: 11px; font-weight: 700; letter-spacing: 2px;
+    text-transform: uppercase; color: var(--accent2);
+    margin-bottom: 1rem;
+  }
+
+  .section h2 {
+    font-size: clamp(28px, 4vw, 44px);
+    font-weight: 800; letter-spacing: -1px;
+    margin-bottom: 1rem; line-height: 1.1;
+  }
+  .section h2 em {
+    font-family: 'Instrument Serif', serif;
+    font-style: italic; color: var(--accent2);
+  }
+  .section > p {
+    font-size: 16px; color: var(--muted); max-width: 500px; line-height: 1.7;
+    margin-bottom: 3rem;
+  }
+
+  .steps {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 16px;
+  }
+
+  .step {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.75rem;
+    position: relative;
+    transition: border-color 0.2s, transform 0.2s;
+  }
+  .step:hover { border-color: var(--border2); transform: translateY(-3px); }
+  .step-num {
+    font-family: 'DM Mono', monospace;
+    font-size: 12px; color: var(--accent2);
+    margin-bottom: 1rem; font-weight: 500;
+  }
+  .step-icon { font-size: 32px; margin-bottom: 0.75rem; display: block; }
+  .step h3 { font-size: 17px; font-weight: 700; margin-bottom: 0.5rem; }
+  .step p { font-size: 14px; color: var(--muted); line-height: 1.6; }
+
+  /* ── DOWNLOAD SECTION ── */
+  .download-section {
+    padding: 2rem;
+    position: relative; z-index: 1;
+  }
+
+  .download-card {
+    max-width: 860px; margin: 0 auto;
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: 28px;
+    padding: 3.5rem;
+    display: grid; grid-template-columns: 1fr auto;
+    gap: 3rem; align-items: center;
+    position: relative; overflow: hidden;
+  }
+  .download-card::before {
+    content: '';
+    position: absolute; top: -80px; right: -80px;
+    width: 300px; height: 300px;
+    background: radial-gradient(circle, rgba(124,108,250,0.15), transparent 70%);
+    pointer-events: none;
+  }
+
+  .download-card h2 {
+    font-size: clamp(24px, 3vw, 36px);
+    font-weight: 800; letter-spacing: -0.8px;
+    margin-bottom: 0.75rem; line-height: 1.15;
+  }
+  .download-card h2 em {
+    font-family: 'Instrument Serif', serif;
+    font-style: italic; color: var(--accent2);
+  }
+  .download-card p { font-size: 15px; color: var(--muted); line-height: 1.65; margin-bottom: 2rem; }
+
+  .download-meta {
+    display: flex; gap: 1.5rem; flex-wrap: wrap; margin-top: 1.25rem;
+  }
+  .meta-item {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12px; color: var(--muted);
+  }
+  .meta-item svg { width: 14px; height: 14px; color: var(--accent2); flex-shrink: 0; }
+
+  .download-icon-wrap {
+    font-size: 90px; line-height: 1;
+    filter: drop-shadow(0 0 30px rgba(124,108,250,0.3));
+    flex-shrink: 0;
+  }
+
+  /* ── FEATURES ── */
+  .features {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px; margin-top: 3rem;
+  }
+  .feature {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px; padding: 1.25rem;
+  }
+  .feature-icon { font-size: 24px; margin-bottom: 0.5rem; display: block; }
+  .feature h4 { font-size: 14px; font-weight: 700; margin-bottom: 0.25rem; }
+  .feature p { font-size: 13px; color: var(--muted); line-height: 1.5; }
+
+  /* ── FOOTER ── */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 2rem 2.5rem;
+    display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap; gap: 1rem;
+    position: relative; z-index: 1;
+  }
+  .footer-logo {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 15px; font-weight: 800; color: var(--text);
+  }
+  footer p { font-size: 13px; color: var(--muted); }
+
+  /* ── Animações ── */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ── Responsivo ── */
+  @media (max-width: 640px) {
+    nav { padding: 1rem 1.25rem; }
+    .nav-links { display: none; }
+    .preview-card { flex-direction: column; }
+    .preview-arrow { flex-direction: row; }
+    .preview-arrow-line { width: 30px; }
+    .download-card { grid-template-columns: 1fr; padding: 2rem; }
+    .download-icon-wrap { display: none; }
+    .hero-actions { flex-direction: column; align-items: center; }
+    .btn-download, .btn-mobile { width: 100%; justify-content: center; }
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <a class="nav-logo" href="#">
+    <span>📡</span> Slide Remote
+  </a>
+  <div class="nav-links">
+    <a href="#como-funciona">Como funciona</a>
+    <a href="#download">Download</a>
+    <a href="https://passador-slide.onrender.com" target="_blank" class="nav-cta">Abrir no celular →</a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-grid"></div>
+
+  <div class="hero-badge">
+    <span class="badge-dot"></span>
+    Gratuito · Sem instalação no celular · Funciona em qualquer rede
+  </div>
+
+  <h1>Controle seus slides<br>de <em>qualquer lugar</em></h1>
+
+  <p>Passe slides do PowerPoint ou PDF usando o celular como controle remoto — sem cabo, sem Bluetooth, sem estar na mesma rede Wi-Fi.</p>
+
+  <div class="hero-actions">
+    <a href="SlideRemote.exe" download class="btn-download">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Baixar para Windows
+    </a>
+    <a href="https://passador-slide.onrender.com" target="_blank" class="btn-mobile">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+      Abrir no celular
+    </a>
+  </div>
+
+  <p class="hero-note">Windows 10 ou superior · Gratuito · v1.0</p>
+
+  <!-- Preview -->
+  <div class="hero-preview">
+    <div class="preview-card">
+      <div class="preview-pc">
+        <div class="icon">🖥️</div>
+        <div class="preview-label">Código gerado</div>
+        <div class="preview-code">482 719</div>
+        <div class="preview-label">no computador</div>
+      </div>
+
+      <div class="preview-arrow">
+        <div class="preview-arrow-line"></div>
+        <span style="font-size:13px; color: var(--accent2);">⚡</span>
+        <div class="preview-arrow-line"></div>
+      </div>
+
+      <div class="preview-phone">
+        <div class="icon">📱</div>
+        <div class="preview-label">Digitou no celular</div>
+        <div class="preview-arrows">
+          <div class="preview-btn">◀</div>
+          <div class="preview-btn">▶</div>
+        </div>
+        <div class="preview-connected">Conectado</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- COMO FUNCIONA -->
+<div id="como-funciona" class="section">
+  <span class="section-tag">Como funciona</span>
+  <h2>Três passos para<br><em>começar a usar</em></h2>
+  <p>Sem configuração complicada. Em menos de 1 minuto você já está controlando sua apresentação.</p>
+
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">01 —</div>
+      <span class="step-icon">💻</span>
+      <h3>Baixe e abra no PC</h3>
+      <p>Instale o Slide Remote no computador onde estão os slides. Um código de 6 dígitos será gerado automaticamente.</p>
+    </div>
+    <div class="step">
+      <div class="step-num">02 —</div>
+      <span class="step-icon">📱</span>
+      <h3>Acesse no celular</h3>
+      <p>Abra o link no navegador do seu celular. Não precisa baixar nada — funciona direto no browser.</p>
+    </div>
+    <div class="step">
+      <div class="step-num">03 —</div>
+      <span class="step-icon">🎯</span>
+      <h3>Digite o código e apresente</h3>
+      <p>Digite o código que aparece no PC, conecte e use as setas do celular para passar os slides.</p>
+    </div>
+  </div>
+
+  <!-- Features -->
+  <div class="features">
+    <div class="feature">
+      <span class="feature-icon">🌐</span>
+      <h4>Qualquer rede</h4>
+      <p>PC e celular não precisam estar na mesma rede Wi-Fi.</p>
+    </div>
+    <div class="feature">
+      <span class="feature-icon">⚡</span>
+      <h4>Baixa latência</h4>
+      <p>Comandos chegam em tempo real via WebSocket.</p>
+    </div>
+    <div class="feature">
+      <span class="feature-icon">📊</span>
+      <h4>PowerPoint e PDF</h4>
+      <p>Funciona com qualquer programa de apresentação.</p>
+    </div>
+    <div class="feature">
+      <span class="feature-icon">🔒</span>
+      <h4>Código único</h4>
+      <p>Código gerado a cada sessão, ninguém interfere na sua apresentação.</p>
+    </div>
+  </div>
+</div>
+
+<!-- DOWNLOAD -->
+<div id="download" class="download-section">
+  <div class="download-card">
+    <div>
+      <span class="section-tag">Download gratuito</span>
+      <h2>Pronto para a sua<br><em>próxima apresentação?</em></h2>
+      <p>Baixe o Slide Remote para Windows, abra antes de começar e use o celular como controle. Simples assim.</p>
+
+      <a href="SlideRemote.exe" download class="btn-download" style="display:inline-flex; width: auto;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:18px;height:18px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Baixar para Windows
+      </a>
+
+      <div class="download-meta">
+        <div class="meta-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+          Windows 10 / 11
+        </div>
+        <div class="meta-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+          100% gratuito
+        </div>
+        <div class="meta-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+          Sem instalação no celular
+        </div>
+      </div>
+    </div>
+
+    <div class="download-icon-wrap">🖥️</div>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-logo">
+    <span>📡</span> Slide Remote
+  </div>
+  <p>Feito para apresentadores. Gratuito para sempre.</p>
+  <a href="https://passador-slide.onrender.com" target="_blank" style="font-size:13px; color: var(--accent2); text-decoration:none; font-weight:600;">
+    Abrir no celular →
+  </a>
+</footer>
+
+</body>
+</html>
